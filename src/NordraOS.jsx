@@ -122,18 +122,28 @@ function GridIcon({ id, color, live }) {
   );
 }
 
-function Onboarding({ step, setStep, lifeStage, setLifeStage, finish }) {
+function Onboarding({ step, setStep, lifeStage, setLifeStage, userName, setUserName, userEmail, setUserEmail, finish }) {
   return (
     <div className="ob-wrap">
       <p className="ob-brand">Nordra</p>
       {step === 0 && (
         <>
-          <h2 className="ob-title">The structure behind your day.</h2>
-          <p className="ob-body">One quiet place for what you need to remember, and — whenever you choose — what you need to coordinate with someone else.</p>
-          <button className="ob-btn" onClick={() => setStep(1)}>Continue</button>
+          <h2 className="ob-title">Let's set up your space.</h2>
+          <p className="ob-body">Just your name and email for now — enough to personalize things while you try it out.</p>
+          <input className="ob-input" placeholder="Your name" value={userName} onChange={(e) => setUserName(e.target.value)} />
+          <input className="ob-input" placeholder="Email address" type="email" value={userEmail} onChange={(e) => setUserEmail(e.target.value)} style={{ marginTop: 10 }} />
+          <p className="ob-fineprint">This is a prototype — nothing here is a real account yet, and no password is needed. It just remembers your name on this device.</p>
+          <button className="ob-btn" disabled={!userName.trim()} onClick={() => setStep(1)} style={{ marginTop: 16 }}>Continue</button>
         </>
       )}
       {step === 1 && (
+        <>
+          <h2 className="ob-title">The structure behind your day.</h2>
+          <p className="ob-body">One quiet place for what you need to remember, and — whenever you choose — what you need to coordinate with someone else.</p>
+          <button className="ob-btn" onClick={() => setStep(2)}>Continue</button>
+        </>
+      )}
+      {step === 2 && (
         <>
           <h2 className="ob-title">Where are you starting from?</h2>
           <p className="ob-body">This shapes what we show you first — you can change it any time.</p>
@@ -142,23 +152,25 @@ function Onboarding({ step, setStep, lifeStage, setLifeStage, finish }) {
               <button key={s.id} className={`ob-option ${lifeStage === s.id ? "active" : ""}`} onClick={() => setLifeStage(s.id)}>{s.label}</button>
             ))}
           </div>
-          <button className="ob-btn" disabled={!lifeStage} onClick={() => setStep(2)}>Continue</button>
+          <button className="ob-btn" disabled={!lifeStage} onClick={() => setStep(3)}>Continue</button>
         </>
       )}
-      {step === 2 && (
+      {step === 3 && (
         <>
           <h2 className="ob-title">Private by default.</h2>
           <p className="ob-body">Everything you add stays yours alone until you choose to share it. Nothing — finances, notes, appointments — becomes visible to anyone else automatically.</p>
           <button className="ob-btn" onClick={finish}>Enter Nordra</button>
         </>
       )}
-      <div className="ob-dots">{[0, 1, 2].map((i) => <span key={i} className={`ob-dot ${i === step ? "active" : ""}`} />)}</div>
+      <div className="ob-dots">{[0, 1, 2, 3].map((i) => <span key={i} className={`ob-dot ${i === step ? "active" : ""}`} />)}</div>
     </div>
   );
 }
 
 export default function NordraOS() {
   const [onboarded, setOnboarded] = useState(() => loadSaved("onboarded", false));
+  const [userName, setUserName] = useState(() => loadSaved("userName", ""));
+  const [userEmail, setUserEmail] = useState(() => loadSaved("userEmail", ""));
   const [obStep, setObStep] = useState(0);
   const [lifeStage, setLifeStage] = useState(() => loadSaved("lifeStage", ""));
   const [tab, setTab] = useState("home");
@@ -173,6 +185,10 @@ export default function NordraOS() {
   const [points, setPoints] = useState(() => loadSaved("points", 784));
   const [challengeDone, setChallengeDone] = useState(() => loadSaved("challengeDone", false));
   const [toast, setToast] = useState("");
+  const [showReview, setShowReview] = useState(false);
+  const [promptDismissed, setPromptDismissed] = useState(() => loadSaved("promptDismissed", false));
+  const [dateModalDay, setDateModalDay] = useState(null);
+  const [dateTaskTitle, setDateTaskTitle] = useState("");
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [newHabitName, setNewHabitName] = useState("");
   const [newGoalName, setNewGoalName] = useState("");
@@ -182,6 +198,9 @@ export default function NordraOS() {
   const [people, setPeople] = useState(() => loadSaved("people", familyPeople));
 
   useEffect(() => saveOnChange("onboarded", onboarded), [onboarded]);
+  useEffect(() => saveOnChange("userName", userName), [userName]);
+  useEffect(() => saveOnChange("userEmail", userEmail), [userEmail]);
+  useEffect(() => saveOnChange("promptDismissed", promptDismissed), [promptDismissed]);
   useEffect(() => saveOnChange("lifeStage", lifeStage), [lifeStage]);
   useEffect(() => saveOnChange("tasks", tasks), [tasks]);
   useEffect(() => saveOnChange("habits", habits), [habits]);
@@ -264,6 +283,14 @@ export default function NordraOS() {
     flash("Added to inbox");
   };
 
+  const addDateTask = () => {
+    if (!dateTaskTitle.trim() || !dateModalDay) return;
+    setTasks((t) => [{ id: Date.now(), title: dateTaskTitle.trim(), time: `${dateModalDay.d} ${dateModalDay.n}`, cat: "personal", done: false, sharedWith: [], dueToday: dateModalDay.i === todayIdx }, ...t]);
+    setDateTaskTitle("");
+    setDateModalDay(null);
+    flash(`Task added for ${dateModalDay.d} ${dateModalDay.n}`);
+  };
+
   const bestStreak = Math.max(...habits.map((h) => currentStreak(h.week)));
 
   const openGrid = (item) => {
@@ -277,14 +304,14 @@ export default function NordraOS() {
 
       <div className="phone">
         {!onboarded ? (
-          <Onboarding step={obStep} setStep={setObStep} lifeStage={lifeStage} setLifeStage={setLifeStage} finish={() => setOnboarded(true)} />
+          <Onboarding step={obStep} setStep={setObStep} lifeStage={lifeStage} setLifeStage={setLifeStage} userName={userName} setUserName={setUserName} userEmail={userEmail} setUserEmail={setUserEmail} finish={() => setOnboarded(true)} />
         ) : (
         <>
         <div className="phone-header">
           <div className="hdr-left">
-            <div className="avatar">D</div>
+            <div className="avatar">{(userName || "D")[0].toUpperCase()}</div>
             <div>
-              <p className="hdr-name">Diamond</p>
+              <p className="hdr-name">{userName || "Diamond"}</p>
               <p className="hdr-sub">🔥 {bestStreak}-day streak</p>
             </div>
           </div>
@@ -297,14 +324,14 @@ export default function NordraOS() {
           <div className="screen">
             <div className="week-strip">
               {weekDates.map((w, i) => (
-                <div key={i} className={`week-pill ${i === todayIdx ? "active" : ""}`}>
+                <button key={i} className={`week-pill ${i === todayIdx ? "active" : ""}`} onClick={() => setDateModalDay({ ...w, i })}>
                   <span className="wp-day">{w.d[0]}</span>
                   <span className="wp-num">{w.n}</span>
-                </div>
+                </button>
               ))}
             </div>
 
-            <p className="greeting">Hello, Diamond.</p>
+            <p className="greeting">Hello, {userName || "Diamond"}.</p>
             <p className="greeting-sub">Wednesday, September 9</p>
 
             <div className="stat-row">
@@ -325,6 +352,27 @@ export default function NordraOS() {
                 <p className="stat-label">Shared</p>
               </div>
             </div>
+
+            <button className="restart-link" style={{ marginBottom: 18 }} onClick={() => setShowReview(true)}>See your weekly review</button>
+
+            {!promptDismissed && tasks.some((t) => t.title === "Dinner with Sarah") && (
+              <div className="prompt-banner">
+                <p>"Dinner with Sarah" has come up three times this month. Want to share this plan with her?</p>
+                <div className="prompt-actions">
+                  <button
+                    className="btn-small primary"
+                    onClick={() => {
+                      const dinnerTask = tasks.find((t) => t.title === "Dinner with Sarah");
+                      if (dinnerTask) openSharePicker(dinnerTask.id);
+                      setPromptDismissed(true);
+                    }}
+                  >
+                    Share
+                  </button>
+                  <button className="btn-small" onClick={() => setPromptDismissed(true)}>Not now</button>
+                </div>
+              </div>
+            )}
 
             <p className="section-label">Today</p>
             {tasks.filter((t) => !t.done).slice(0, 3).map((t) => (
@@ -469,7 +517,7 @@ export default function NordraOS() {
             )}
 
             <div className="fam-person">
-              <div className="fam-head"><span className="fam-avatar" style={{ background: CAT.personal }}>D</span>Diamond</div>
+              <div className="fam-head"><span className="fam-avatar" style={{ background: CAT.personal }}>{(userName || "D")[0].toUpperCase()}</span>{userName || "Diamond"}</div>
               {tasks.filter((t) => t.sharedWith && t.sharedWith.length > 0).length === 0 && <p className="empty-note">Nothing shared yet.</p>}
               {tasks.filter((t) => t.sharedWith && t.sharedWith.length > 0).map((t) => (
                 <div className="fam-item" key={t.id}>
@@ -547,6 +595,42 @@ export default function NordraOS() {
           );
         })()}
 
+        {showReview && (
+          <div className="modal-overlay" onClick={() => setShowReview(false)}>
+            <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+              <p className="modal-title">Your week</p>
+              <div className="review-stats">
+                <div><span className="review-num">{tasks.filter((t) => t.done).length}</span><span className="review-label">completed</span></div>
+                <div><span className="review-num">{tasks.filter((t) => !t.done).length}</span><span className="review-label">still open</span></div>
+                <div><span className="review-num">{bestStreak}</span><span className="review-label">best streak</span></div>
+              </div>
+              <p className="ob-body">
+                {tasks.filter((t) => t.done).length > 0
+                  ? "Nice work keeping on top of things this week."
+                  : "Nothing completed yet this week — no pressure, just a snapshot."}
+              </p>
+              <button className="ob-btn" onClick={() => setShowReview(false)}>Close</button>
+            </div>
+          </div>
+        )}
+
+        {dateModalDay && (
+          <div className="modal-overlay" onClick={() => setDateModalDay(null)}>
+            <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+              <p className="modal-title">Add a task — {dateModalDay.d} {dateModalDay.n}</p>
+              <input
+                className="ob-input"
+                placeholder="What do you need to do?"
+                value={dateTaskTitle}
+                onChange={(e) => setDateTaskTitle(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && addDateTask()}
+                autoFocus
+              />
+              <button className="ob-btn" style={{ marginTop: 14, width: "100%" }} onClick={addDateTask}>Add task</button>
+            </div>
+          </div>
+        )}
+
         <div className="tab-bar">
           {tabs.map((t) => (
             <button key={t.id} className={`tab-btn ${tab === t.id && !gridScreen ? "active" : ""}`} onClick={() => { setTab(t.id); setGridScreen(null); }}>
@@ -614,7 +698,7 @@ ${FONT_IMPORT}
 .screen { flex: 1; overflow-y: auto; padding: 4px 20px 16px; }
 
 .week-strip { display: flex; justify-content: space-between; margin-bottom: 18px; }
-.week-pill { display: flex; flex-direction: column; align-items: center; gap: 4px; width: 36px; padding: 8px 0; border-radius: 14px; color: var(--muted); font-size: 11px; }
+.week-pill { display: flex; flex-direction: column; align-items: center; gap: 4px; width: 36px; padding: 8px 0; border-radius: 14px; color: var(--muted); font-size: 11px; background: none; border: none; font-family: 'Sora', sans-serif; }
 .week-pill.active { background: linear-gradient(135deg, #6C5CE7, #FF6F59); color: #fff; }
 .wp-num { font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 13px; }
 
@@ -706,10 +790,20 @@ ${FONT_IMPORT}
 
 .restart-link { background: none; border: none; color: var(--muted); font-size: 10.5px; text-decoration: underline; text-underline-offset: 3px; padding: 0; margin: 4px 0 6px; }
 
+.prompt-banner { background: var(--surface); border: 1px solid rgba(255,111,89,0.35); border-left: 3px solid #FF6F59; border-radius: 14px; padding: 14px 16px; margin-bottom: 18px; }
+.prompt-banner p { margin: 0 0 12px 0; font-size: 12.5px; line-height: 1.5; color: var(--ink); }
+.prompt-actions { display: flex; gap: 8px; }
+.btn-small { background: none; border: 1px solid var(--line); color: var(--muted); font-size: 11.5px; padding: 7px 14px; border-radius: 10px; font-family: 'Sora', sans-serif; }
+.btn-small.primary { background: linear-gradient(135deg, #6C5CE7, #FF6F59); color: #fff; border: none; font-weight: 700; }
+
 .ob-wrap { flex: 1; display: flex; flex-direction: column; justify-content: center; padding: 32px 26px; }
 .ob-brand { font-family: 'Space Grotesk', sans-serif; font-weight: 800; font-size: 20px; color: #6C5CE7; margin: 0 0 22px 0; }
 .ob-title { font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 24px; color: var(--ink); margin: 0 0 12px 0; line-height: 1.25; }
 .ob-body { font-size: 13.5px; color: var(--muted); line-height: 1.6; margin: 0 0 24px 0; }
+.ob-input { width: 100%; background: var(--surface); border: 1.5px solid rgba(255,255,255,0.10); color: var(--ink); font-size: 14px; padding: 12px 14px; border-radius: 12px; font-family: 'Sora', sans-serif; }
+.ob-input::placeholder { color: var(--muted); }
+.ob-input:focus { outline: none; border-color: #6C5CE7; }
+.ob-fineprint { font-size: 11px; color: var(--muted); line-height: 1.5; margin: 12px 0 0 0; font-style: italic; }
 .ob-options { display: flex; flex-direction: column; gap: 8px; margin-bottom: 22px; }
 .ob-option { background: var(--surface); border: 1.5px solid rgba(255,255,255,0.10); color: var(--ink); padding: 12px 14px; border-radius: 12px; text-align: left; font-size: 13.5px; transition: border-color 0.2s ease, background 0.2s ease; }
 .ob-option:hover { border-color: #6C5CE7; }
@@ -725,6 +819,11 @@ ${FONT_IMPORT}
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 .modal-card { background: var(--surface2); border: 1px solid var(--line); border-radius: 18px; padding: 20px; width: 100%; max-width: 300px; animation: rise 0.2s ease-out; box-shadow: 0 20px 50px rgba(0,0,0,0.5); }
 .modal-title { font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 16px; color: var(--ink); margin: 0 0 4px 0; }
+
+.review-stats { display: flex; gap: 20px; margin: 16px 0; }
+.review-stats > div { display: flex; flex-direction: column; }
+.review-num { font-family: 'Space Grotesk', sans-serif; font-weight: 800; font-size: 24px; color: #6C5CE7; }
+.review-label { font-size: 10.5px; color: var(--muted); margin-top: 2px; }
 .person-picker-row { display: flex; align-items: center; gap: 10px; width: 100%; background: none; border: none; padding: 10px 4px; color: var(--ink); font-size: 13.5px; border-bottom: 1px solid var(--line); }
 .person-picker-row:last-of-type { border-bottom: none; }
 .picker-check { width: 20px; height: 20px; border-radius: 50%; border: 1.5px solid rgba(255,255,255,0.25); display: flex; align-items: center; justify-content: center; font-size: 12px; color: #fff; flex-shrink: 0; }
