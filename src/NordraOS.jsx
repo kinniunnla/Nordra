@@ -43,11 +43,11 @@ const weekDates = [
 const todayIdx = 3;
 
 const initialTasks = [
-  { id: 1, title: "Pay electricity bill", time: "Due today", cat: "personal", done: false, sharedWith: [] },
-  { id: 2, title: "Call client", time: "2:00 PM", cat: "tasks", done: false, sharedWith: [] },
-  { id: 3, title: "Gym", time: "6:00 PM", cat: "health", done: false, sharedWith: [] },
-  { id: 4, title: "Dinner with Sarah", time: "8:00 PM", cat: "family", done: false, sharedWith: [] },
-  { id: 5, title: "Book dentist", time: "This week", cat: "health", done: true, sharedWith: [] },
+  { id: 1, title: "Pay electricity bill", time: "Due today", cat: "personal", done: false, sharedWith: [], dayIndex: todayIdx },
+  { id: 2, title: "Call client", time: "2:00 PM", cat: "tasks", done: false, sharedWith: [], dayIndex: todayIdx },
+  { id: 3, title: "Gym", time: "6:00 PM", cat: "health", done: false, sharedWith: [], dayIndex: todayIdx },
+  { id: 4, title: "Dinner with Sarah", time: "8:00 PM", cat: "family", done: false, sharedWith: [], dayIndex: todayIdx },
+  { id: 5, title: "Book dentist", time: "Fri 10", cat: "health", done: true, sharedWith: [], dayIndex: 5 },
 ];
 
 const initialHabits = [
@@ -189,6 +189,7 @@ export default function NordraOS() {
   const [promptDismissed, setPromptDismissed] = useState(() => loadSaved("promptDismissed", false));
   const [dateModalDay, setDateModalDay] = useState(null);
   const [dateTaskTitle, setDateTaskTitle] = useState("");
+  const [selectedDayIndex, setSelectedDayIndex] = useState(todayIdx);
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [newHabitName, setNewHabitName] = useState("");
   const [newGoalName, setNewGoalName] = useState("");
@@ -216,7 +217,7 @@ export default function NordraOS() {
 
   const addTask = () => {
     if (!newTaskTitle.trim()) return;
-    setTasks((t) => [{ id: Date.now(), title: newTaskTitle.trim(), time: "Added just now", cat: "personal", done: false, sharedWith: [] }, ...t]);
+    setTasks((t) => [{ id: Date.now(), title: newTaskTitle.trim(), time: "Added just now", cat: "personal", done: false, sharedWith: [], dayIndex: todayIdx }, ...t]);
     setNewTaskTitle("");
     flash("Task added");
   };
@@ -275,7 +276,14 @@ export default function NordraOS() {
   }));
   const bumpGoal = (id) => setGoals((g) => g.map((x) => (x.id === id ? { ...x, pct: Math.min(100, x.pct + 10) } : x)));
   const completeChallenge = () => { setChallengeDone(true); setPoints((p) => p + 20); flash("+20 points earned"); };
-  const resolveInbox = (id) => { setInbox((i) => i.filter((x) => x.id !== id)); flash("Added to tasks"); };
+  const resolveInbox = (id) => {
+    const item = inbox.find((x) => x.id === id);
+    if (item) {
+      setTasks((t) => [{ id: Date.now(), title: item.title, time: "From inbox", cat: "personal", done: false, sharedWith: [], dayIndex: todayIdx }, ...t]);
+    }
+    setInbox((i) => i.filter((x) => x.id !== id));
+    flash("Added to tasks");
+  };
   const addInboxItem = () => {
     if (!newInboxTitle.trim()) return;
     setInbox((i) => [{ id: Date.now(), source: "Manually added", title: newInboxTitle.trim(), detail: "" }, ...i]);
@@ -285,9 +293,11 @@ export default function NordraOS() {
 
   const addDateTask = () => {
     if (!dateTaskTitle.trim() || !dateModalDay) return;
-    setTasks((t) => [{ id: Date.now(), title: dateTaskTitle.trim(), time: `${dateModalDay.d} ${dateModalDay.n}`, cat: "personal", done: false, sharedWith: [], dueToday: dateModalDay.i === todayIdx }, ...t]);
+    const label = dateModalDay.i === todayIdx ? "Due today" : `${dateModalDay.d} ${dateModalDay.n}`;
+    setTasks((t) => [{ id: Date.now(), title: dateTaskTitle.trim(), time: label, cat: "personal", done: false, sharedWith: [], dayIndex: dateModalDay.i }, ...t]);
     setDateTaskTitle("");
     setDateModalDay(null);
+    setSelectedDayIndex(dateModalDay.i);
     flash(`Task added for ${dateModalDay.d} ${dateModalDay.n}`);
   };
 
@@ -324,7 +334,11 @@ export default function NordraOS() {
           <div className="screen">
             <div className="week-strip">
               {weekDates.map((w, i) => (
-                <button key={i} className={`week-pill ${i === todayIdx ? "active" : ""}`} onClick={() => setDateModalDay({ ...w, i })}>
+                <button
+                  key={i}
+                  className={`week-pill ${i === selectedDayIndex ? "active" : ""} ${i === todayIdx && i !== selectedDayIndex ? "is-today" : ""}`}
+                  onClick={() => setSelectedDayIndex(i)}
+                >
                   <span className="wp-day">{w.d[0]}</span>
                   <span className="wp-num">{w.n}</span>
                 </button>
@@ -340,7 +354,7 @@ export default function NordraOS() {
                 <p className="stat-label">Day streak</p>
               </div>
               <div className="stat-card" style={{ background: TINT.tasks }}>
-                <p className="stat-value" style={{ color: CAT.tasks }}>{tasks.filter((t) => !t.done).length}</p>
+                <p className="stat-value" style={{ color: CAT.tasks }}>{tasks.filter((t) => !t.done && (t.dayIndex ?? todayIdx) === todayIdx).length}</p>
                 <p className="stat-label">Tasks today</p>
               </div>
               <div className="stat-card" style={{ background: TINT.growth }}>
@@ -374,12 +388,22 @@ export default function NordraOS() {
               </div>
             )}
 
-            <p className="section-label">Today</p>
-            {tasks.filter((t) => !t.done).slice(0, 3).map((t) => (
+            <div className="agenda-head">
+              <p className="section-label" style={{ margin: 0 }}>
+                {selectedDayIndex === todayIdx ? "Today" : `${weekDates[selectedDayIndex].d} ${weekDates[selectedDayIndex].n}`}
+              </p>
+              <button className="add-task-btn small" onClick={() => setDateModalDay({ ...weekDates[selectedDayIndex], i: selectedDayIndex })}>+ Add</button>
+            </div>
+            {tasks.filter((t) => (t.dayIndex ?? todayIdx) === selectedDayIndex).length === 0 && (
+              <p className="empty-note">Nothing on this day yet.</p>
+            )}
+            {tasks.filter((t) => (t.dayIndex ?? todayIdx) === selectedDayIndex).map((t) => (
               <div className="task-row" key={t.id}>
-                <button className="box-check" onClick={() => toggleTaskDone(t.id)} />
+                <button className={`box-check ${t.done ? "on" : ""}`} style={t.done ? { background: CAT[t.cat], borderColor: CAT[t.cat] } : {}} onClick={() => toggleTaskDone(t.id)}>
+                  {t.done && <svg width="9" height="7" viewBox="0 0 10 8"><path d="M1 4l2.5 2.5L9 1" fill="none" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>}
+                </button>
                 <span className="cat-dot" style={{ background: CAT[t.cat] }} />
-                <div className="task-main"><span className="task-title">{t.title}</span><span className="task-time">{t.time}</span></div>
+                <div className="task-main"><span className={`task-title ${t.done ? "done" : ""}`}>{t.title}</span><span className="task-time">{t.time}</span></div>
               </div>
             ))}
 
@@ -698,8 +722,9 @@ ${FONT_IMPORT}
 .screen { flex: 1; overflow-y: auto; padding: 4px 20px 16px; }
 
 .week-strip { display: flex; justify-content: space-between; margin-bottom: 18px; }
-.week-pill { display: flex; flex-direction: column; align-items: center; gap: 4px; width: 36px; padding: 8px 0; border-radius: 14px; color: var(--muted); font-size: 11px; background: none; border: none; font-family: 'Sora', sans-serif; }
+.week-pill { display: flex; flex-direction: column; align-items: center; gap: 4px; width: 36px; padding: 8px 0; border-radius: 14px; color: var(--muted); font-size: 11px; background: none; border: none; font-family: 'Sora', sans-serif; position: relative; }
 .week-pill.active { background: linear-gradient(135deg, #6C5CE7, #FF6F59); color: #fff; }
+.week-pill.is-today::after { content: ""; position: absolute; bottom: 2px; width: 4px; height: 4px; border-radius: 50%; background: #6C5CE7; }
 .wp-num { font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 13px; }
 
 .greeting { font-family: 'Space Grotesk', sans-serif; font-weight: 800; font-size: 22px; margin: 0; color: var(--ink); animation: rise 0.4s ease-out; }
@@ -765,6 +790,8 @@ ${FONT_IMPORT}
 .add-task-row input::placeholder { color: var(--muted); }
 .add-task-row input:focus { outline: none; border-color: #6C5CE7; }
 .add-task-btn { background: linear-gradient(135deg, #6C5CE7, #FF6F59); color: #fff; border: none; font-weight: 700; font-size: 12.5px; padding: 0 16px; border-radius: 12px; }
+.add-task-btn.small { padding: 6px 12px; font-size: 11px; height: auto; }
+.agenda-head { display: flex; align-items: center; justify-content: space-between; margin: 20px 0 12px 0; }
 
 .task-row { display: flex; align-items: center; gap: 8px; padding: 10px 0; border-bottom: 1px solid var(--line); }
 .box-check { width: 20px; height: 20px; border-radius: 7px; border: 1.5px solid rgba(255,255,255,0.22); background: transparent; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
